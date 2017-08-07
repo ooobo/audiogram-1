@@ -27,6 +27,9 @@ function update(url, theme) {
     .attr("download", filename.replace(".mp4",".xml"))
     .attr("href", url.replace(".mp4",".xml"));
 
+  d3.select("#video-link")
+    .attr("href", url);
+
   d3.select(video).select("source")
     .attr("src", url);
 
