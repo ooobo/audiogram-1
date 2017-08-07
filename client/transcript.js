@@ -1,4 +1,5 @@
 var jQuery = require("jquery"),
+    logger = require("./slack.js"),
     ReactDOM = require('react-dom'),
     React = require('react'),
     TranscriptEditor = require('transcript-editor').default,
@@ -317,6 +318,7 @@ function generate(blob) {
     error: function(jqXHR, textStatus, errorThrown){
       jQuery("#transcript-pane .error span").text(errorThrown + " (" + jqXHR.status + "): " + jqXHR.responseText);
       jQuery("#transcript").removeClass("loading").addClass("error");
+      logger.error("Error starting kaldi job (" + jqXHR.status + ": " + errorThrown + ")", jqXHR);
     }
   });
 
