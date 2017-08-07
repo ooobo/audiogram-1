@@ -100,7 +100,7 @@ jQuery(document).on('keyup', '.transcript-editor', function(e){
         var wordStart = jQuery(this).attr("data-start"),
             wordEnd = jQuery(this).attr("data-end"),
             wordMiddle = wordEnd - (wordEnd-wordStart)/2;
-        return wordMiddle < start || wordStart > end;
+        return wordStart < start || wordStart > end;
       }).addClass("unused");
     }
   }
@@ -123,10 +123,21 @@ jQuery(document).on("change","select.transcript-speaker",function(){
       jQuery('.transcript-editor-block__space').removeClass("line-break").removeClass("page-break");
       jQuery( ".transcript-editor-block__text, .transcript-editor-block__word" ).each(function( index ) {
         if (jQuery(this).is('.transcript-editor-block__word')) {
+          if ( jQuery(this).is(".transcript-editor-block__word:not(.unused):first") && jQuery(this).prev().is(".transcript-editor-block__space") ) {
+            // Audio has been trimmed at START
+            jQuery(this).prev().addClass("page-break");
+            charCount = 0;
+            lineCount = 1;
+          } else if ( jQuery(this).is(".transcript-editor-block__word:not(.unused):last") && jQuery(this).next().is(".transcript-editor-block__space") ) {
+            // Audio has be trimmed at END
+            jQuery(this).next().addClass("page-break");
+            charCount = 0;
+            lineCount = 1;
+          }
           // Word (add to character count)
           var str = jQuery(this).text();
-          charCount += str.length;
-          if (charCount>maxChar) {
+          charCount += str.length + 1;
+          if ( (charCount-1) > maxChar ) {
             // Simulate line-break before word
             var space = jQuery(this).prevAll(".transcript-editor-block__space:first");
             space.addClass("line-break");
@@ -136,7 +147,7 @@ jQuery(document).on("change","select.transcript-speaker",function(){
             } else {
               lineCount++;
             }
-            charCount = str.length;
+            charCount = str.length + 1;
           }
         } else {
           // New block, reset counters

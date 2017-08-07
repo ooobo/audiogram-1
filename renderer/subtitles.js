@@ -1,5 +1,6 @@
 
 var nextStart = {i: 0, j: 0, time: 0},
+    subs = [],
     lines = [],
     srt = [];
 
@@ -60,172 +61,162 @@ function save(type, path, cb) {
 
 }
 
-function draw(context, options) {
+function format(options, cb) {
+  if (!options.transcript) return;
 
-  var theme = options.theme,
-      offset = options.offset,
-      time = options.time + offset,
-      times = [];
+  subs = [];
 
-  nextStart.time = options.preview ? 0 : nextStart.time || offset;
+  var segments = options.transcript.segments,
+      theme = options.theme,
+      maxLineChars = ifNumeric(+theme.subtitles.lineWidth, 30),
+      maxNumLines = ifNumeric(+theme.subtitles.linesMax, 2);
 
-    if (!transcript) {
-      return;
-    }
+  // Loop through each transcript segment
+  for (var i = 0; i < segments.length; i++) {
+    var words = segments[i].words,
+        speaker = segments[i].speaker,
+        forceNewFrame = true;
 
-    if (options.preview || (time >= nextStart.time && options.end>nextStart.time) ) {
-      lines = [];
-      var line = 0,
-          lineLength = 0,
-          totalChars = 0,
-          lineWidth = ifNumeric(+theme.subtitles.lineWidth, 30); 
-          linesMax = ifNumeric(+theme.subtitles.linesMax, 2),
-          speaker = 0;
+    // Loop through each segment word
+    for (var j = 0; j < words.length; j++) {
 
-      // Split text into lines
-      loopSegments:
-        for (var i = nextStart.i; i < transcript.segments.length; i++) {
-          loopWords:
-            for (var j = nextStart.j; j < transcript.segments[i].words.length; j++) {
-              nextStart.j = 0;
-              if (transcript.segments[i].words[j].end > options.end) {
-                break loopSegments;
-              }
-              var wordStart = transcript.segments[i].words[j].start,
-                  wordEnd = transcript.segments[i].words[j].end,
-                  wordMid = wordStart + (wordEnd - wordStart)/2;
-              if (wordMid >= offset) {
-                wordLength = transcript.segments[i].words[j].text.length;
-                lineLength += wordLength;
-                if ( lineLength>lineWidth && (line+2)>linesMax ) {
-                  break loopSegments;
-                } else if (lineLength>lineWidth) {
-                  // Move to new line
-                  line++;
-                  lineLength = wordLength;
-                }
-                if (transcript.segments[i].words[j].text) {
-                  // Add word
-                  lines[line] = (lines[line] || "") + transcript.segments[i].words[j].text + " ";
-                  totalChars += transcript.segments[i].words[j].text.length + 1;
-                  times.push({start: wordStart-offset, end: wordEnd-offset});
-                  speaker = transcript.segments[i].speaker;
-                  // console.log("times.length: " + times.length);
-                }
-                if (j == transcript.segments[i].words.length - 1) {
-                  i++;
-                  j=0;
-                  break loopSegments;
-                }
-              }
-            }
-        }
-        if (!options.preview) {
-          nextStart = {
-            i: i,
-            j: j,
-            time: transcript.segments[i] ?  transcript.segments[i].words[j] ? transcript.segments[i].words[j].start : options.end : options.end
-          };
-        }
+      var word = words[j],
+          start = word.start - options.trim.start,
+          end = word.end - options.trim.start,
+          text = word.punct || word.text,
+          middle = start + (end-start)/2;
 
-    }
+      if (start >= 0 && end <= options.trim.end - options.trim.start ) {
 
-    // Re-distribute lines evenly
-    if (lines.length>1) {
-      var avgCharLine = totalChars/lines.length,
-          redistribute = false;
-      for (var i = 0; i < lines.length; i++) {
-        var diff = Math.abs(lines[i].length - avgCharLine);
-        if (diff > 0.5*avgCharLine) {
-          redistribute = true;
-          break;
-        }
-      }
-      if (redistribute) {
-        var words = lines.join(" ").split(" "),
-            line = 0;
-        lines = [""];
-        for (var i = 0; i < words.length; i++) {
-          if (lines[line].length + words[i].length > avgCharLine && (line+2 <= linesMax) ) {
-            line++;
-            lines[line] = "";
+        var latestFrame = subs.length ? subs[subs.length-1] : null,
+            latestLine = latestFrame ? latestFrame.lines[latestFrame.lines.length-1] : null;
+
+        if (!latestFrame || forceNewFrame || (latestLine.length + text.length + 1 > maxLineChars && latestFrame.lines.length + 1 > maxNumLines) || subs[subs.length-1].end < (start - 5)  ) {
+          // Make a new frame if:
+          //    - it's the first one
+          //    - we've moved to a new segment
+          //    - we've reached maximum number of lines (and the last line is full)
+          //    - there was a long gap between the last word and this one
+          if ( latestFrame && start - latestFrame.end < 1 ) {
+            // If the start of the new frame is within 1s of the end of the last, split the difference
+            var diff = start - latestFrame.end;
+            start = start - diff/2;
+            latestFrame.end += diff/2;
+          } else if (!latestFrame && start < 1) {
+            // If the first frame is near the start, force it to zero
+            start = 0;
           }
-          lines[line] += words[i] + " ";
+          subs.push( {lines: [text], start: start, end: end, speaker: speaker} );
+          forceNewFrame = false;
+        } else {
+          if (latestLine.length + text.length + 1 > maxLineChars) {
+            // Make a new line in an existing frame if the current one is full
+            latestFrame.lines.push(text);
+          } else {
+            // Or append the text to the current line if there's still space
+            latestFrame.lines[latestFrame.lines.length-1] += " " + text;
+          }
+          // Update the end time of the frame
+          latestFrame.end = end;
         }
-      }
+
+      } // if within trim range
+
+    } // word loop
+
+  } // segment loop
+
+  // Generate Subtile File
+  if (subs.length>0) {
+    function timeFormat(t) {
+      t = Number(t);
+      var h = Math.floor(t / 3600),
+          m = Math.floor(t % 3600 / 60),
+          s = (t % 3600 % 60).toFixed(2),
+          string = `00${h}`.slice(-2) + ":" + `00${m}`.slice(-2) + ":" + `00${s}`.slice(-5);
+      return string.replace(".",",");
     }
-
-
-    // Format
-    if (theme.subtitles.fontWeight=="Regular") theme.subtitles.fontWeight = ""; 
-    var ratio = { // Font sizes/spacing are relative to the default theme size, (1280x720), so scale accordingly
-          width: theme.width/1280,
-          height: theme.height/720
-        },
-        fontSize = theme.subtitles.fontSize * ratio.width,
-        font = fontSize + "px '" + theme.subtitles.font + theme.subtitles.fontWeight + "'",
-        left = ifNumeric(theme.subtitles.left, 0, theme.width),
-        right = ifNumeric(theme.subtitles.right, 1, theme.width),
-        captionWidth = right - left,
-        horizontal = ifNumeric(+theme.subtitles.margin.horizontal, 0.5, theme.width),
-        vertical = ifNumeric(+theme.subtitles.margin.vertical, 0.5, theme.height),
-        spacing = theme.subtitles.lineSpacing;
-
-    var totalHeight = lines.length * (fontSize + (spacing * ratio.width)),
-        x = horizontal,
-        // x = theme.subtitles.align === "left" ? left : theme.subtitles.align === "right" ? right : (left + right) / 2,
-        y;
-
-    if (theme.subtitles.valign=="top") {
-      y = vertical;
-    } else if (theme.subtitles.valign=="bottom") {
-      y = vertical - totalHeight;
-    } else {
-      y = vertical - totalHeight/2;
+    srt = [];
+    for (var i = 0; i < subs.length; i++) {
+      var key = timeFormat(subs[i].start) + " --> " + timeFormat(subs[i].end);
+      srt[key] = subs[i].lines.join("\n");
     }
+  }
 
-    // Draw background box
-    if (lines.length && theme.subtitles.box && theme.subtitles.box.opacity>0) {
-      context.globalAlpha = theme.subtitles.box.opacity;
-      context.fillStyle = theme.subtitles.box.color || "#000000";
-      context.fillRect(0, y-spacing, theme.width, totalHeight+spacing*3);
-      context.globalAlpha = 1;
+  if (cb) cb(null);
+
+}
+
+function draw(context, theme, time) {
+
+  var lines = null;
+  for (var i = 0; i < subs.length; i++) {
+    if (subs[i].start <= time && subs[i].end > time) {
+      lines = subs[i].lines;
+      var speaker = subs[i].speaker;
+      break;
     }
+  }
 
-    context.font = font;
-    context.textBaseline = "top";
-    context.textAlign = theme.subtitles.align || "center";
-    lines.forEach(function(text, i){
-      text = text.replace(/  +/g, ' ');
-      var lineY = y + i * (fontSize + (spacing * ratio.width))
-      if (theme.subtitles.stroke && theme.subtitles.stroke.width>0) {
-        context.strokeStyle = theme.subtitles.stroke.color;
-        context.lineWidth = theme.subtitles.stroke.width * ratio.width;
-        context.strokeText(text, x, lineY);
-      }
-      context.fillStyle = theme.subtitles.color[speaker] ? theme.subtitles.color[speaker] : theme.subtitles.color[0];
-      context.fillText(text, x, lineY);
-    });
+  if (!lines) return false;
 
-    // Generate Subtile File
-    if (times.length>0) {
-      function timeFormat(t) {
-        t = Number(t);
-        var h = Math.floor(t / 3600),
-            m = Math.floor(t % 3600 / 60),
-            s = (t % 3600 % 60).toFixed(2),
-            string = `00${h}`.slice(-2) + ":" + `00${m}`.slice(-2) + ":" + `00${s}`.slice(-5);
-        return string.replace(".",",");
-      }
-      var key = timeFormat(times[0].start) + " --> " + timeFormat(times[times.length-1].end);
-      srt[key] = lines.join("\n");
+  // Format
+  if (theme.subtitles.fontWeight=="Regular") theme.subtitles.fontWeight = ""; 
+  var ratio = { // Font sizes/spacing are relative to the default theme size, (1280x720), so scale accordingly
+        width: theme.width/1280,
+        height: theme.height/720
+      },
+      fontSize = theme.subtitles.fontSize * ratio.width,
+      font = fontSize + "px '" + theme.subtitles.font + theme.subtitles.fontWeight + "'",
+      left = ifNumeric(theme.subtitles.left, 0, theme.width),
+      right = ifNumeric(theme.subtitles.right, 1, theme.width),
+      captionWidth = right - left,
+      horizontal = ifNumeric(+theme.subtitles.margin.horizontal, 0.5, theme.width),
+      vertical = ifNumeric(+theme.subtitles.margin.vertical, 0.5, theme.height),
+      spacing = theme.subtitles.lineSpacing;
+
+  var totalHeight = lines.length * (fontSize + (spacing * ratio.width)),
+      x = horizontal,
+      // x = theme.subtitles.align === "left" ? left : theme.subtitles.align === "right" ? right : (left + right) / 2,
+      y;
+
+  if (theme.subtitles.valign=="top") {
+    y = vertical;
+  } else if (theme.subtitles.valign=="bottom") {
+    y = vertical - totalHeight;
+  } else {
+    y = vertical - totalHeight/2;
+  }
+
+  // Draw background box
+  if (lines.length && theme.subtitles.box && theme.subtitles.box.opacity>0) {
+    context.globalAlpha = theme.subtitles.box.opacity;
+    context.fillStyle = theme.subtitles.box.color || "#000000";
+    context.fillRect(0, y-spacing, theme.width, totalHeight+spacing*3);
+    context.globalAlpha = 1;
+  }
+
+  context.font = font;
+  context.textBaseline = "top";
+  context.textAlign = theme.subtitles.align || "center";
+  lines.forEach(function(text, i){
+    text = text.replace(/  +/g, ' ');
+    var lineY = y + i * (fontSize + (spacing * ratio.width))
+    if (theme.subtitles.stroke && theme.subtitles.stroke.width>0) {
+      context.strokeStyle = theme.subtitles.stroke.color;
+      context.lineWidth = theme.subtitles.stroke.width * ratio.width;
+      context.strokeText(text, x, lineY);
     }
+    context.fillStyle = theme.subtitles.color[speaker] ? theme.subtitles.color[speaker] : theme.subtitles.color[0];
+    context.fillText(text, x, lineY);
+  });
 
  }
 
 
 module.exports = {
   draw: draw,
+  format: format,
   nextStart: _nextStart,
   transcript: _transcript,
   save: save

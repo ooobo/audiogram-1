@@ -58,6 +58,10 @@ module.exports = function(t) {
   // Draw the frame
   renderer.drawFrame = function(context, options){
 
+    if (options.preview) {
+      subtitles.format({transcript: options.transcript, theme: theme, trim: {start: options.start, end: options.end}});
+    }
+
     context.patternQuality = "best";
     context.clearRect(0, 0, theme.width, theme.height);
     context.fillStyle = theme.backgroundColor;
@@ -129,29 +133,34 @@ module.exports = function(t) {
 
     // SUBTITLES
     if (theme.subtitles.enabled && options.transcript) {
-      options.transcript.segments.forEach(function(segment, i){
-        if (segment.words.length) {
-          var start = segment.words[0].start,
-          end = segment.words[segment.words.length-1].end,
-          dur = end-start;
-          // if ( dur<1 && options.transcript.segments[i-1] && options.transcript.segments[i-1].words && options.transcript.segments[i-1].words[options.transcript.segments[i-1].words.length-1] && options.transcript.segments[i+1].words[0]) {
-          //   var diff = 1 - dur;
-          //   segment.words[0].start -= diff/2;
-          //   segment.words[segment.words.length-1].end += diff/2;
-          //   options.transcript.segments[i-1].words[options.transcript.segments[i-1].words.length-1].end -= diff/2;
-          //   options.transcript.segments[i+1].words[0].start += diff/2;
-          // }
-        }
-      });
-      var currentTime = options.frame / options.fps;
-      subtitles.transcript(options.transcript);
-      subtitles.draw(context, {
-        theme: theme,
-        time: currentTime,
-        offset: options.start,
-        end: options.end,
-        preview: options.preview
-      });
+
+      var time = options.frame / options.fps || 0;
+      subtitles.draw(context, theme, time);
+
+      // options.transcript.segments.forEach(function(segment, i){
+      //   if (segment.words.length) {
+      //     var start = segment.words[0].start,
+      //     end = segment.words[segment.words.length-1].end,
+      //     dur = end-start;
+      //     // if ( dur<1 && options.transcript.segments[i-1] && options.transcript.segments[i-1].words && options.transcript.segments[i-1].words[options.transcript.segments[i-1].words.length-1] && options.transcript.segments[i+1].words[0]) {
+      //     //   var diff = 1 - dur;
+      //     //   segment.words[0].start -= diff/2;
+      //     //   segment.words[segment.words.length-1].end += diff/2;
+      //     //   options.transcript.segments[i-1].words[options.transcript.segments[i-1].words.length-1].end -= diff/2;
+      //     //   options.transcript.segments[i+1].words[0].start += diff/2;
+      //     // }
+      //   }
+      // });
+      // var currentTime = options.frame / options.fps;
+      // subtitles.transcript(options.transcript);
+      // subtitles.draw(context, {
+      //   theme: theme,
+      //   time: currentTime,
+      //   offset: options.start,
+      //   end: options.end,
+      //   preview: options.preview
+      // });
+
     }
 
     // BBC WATERMARK

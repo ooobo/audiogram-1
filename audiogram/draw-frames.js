@@ -1,15 +1,21 @@
 var fs = require("fs"),
     path = require("path"),
     Canvas = require("canvas"),
+    subtitles = require("../renderer/subtitles.js"),
     queue = require("d3").queue;
 
 function drawFrames(renderer, options, cb) {
 
   var frameQueue = queue(10),
-      canvases = [];
+      canvases = [],
+      theme = renderer.theme();
 
   for (var i = 0; i < 10; i++) {
     canvases.push(new Canvas(options.width, options.height));
+  }
+
+  if (theme.subtitles.enabled && options.transcript) {
+    frameQueue.defer(subtitles.format, {transcript: options.transcript, theme: theme, trim: {start: options.start, end: options.end}});
   }
 
   for (var i = 0; i < options.numFrames-2; i++) {

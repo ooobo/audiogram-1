@@ -94,6 +94,7 @@ minimap.onBrush(function(extent){
   }
 
   transcript.highlight((selection.start || 0),(selection.end || selection.duration));
+  transcript.format();
 
   d3.select("#start")
     .property("value", Math.round(100 * (selection.start || 0) ) / 100 )
@@ -156,6 +157,7 @@ function redraw() {
     backgroundInfo: (img.background && imgInfo.background ? imgInfo.background : theme.backgroundImageInfo ? theme.backgroundImageInfo[theme.orientation] : null),
     preview: true,
     start: selection ? selection.start : 0,
+    end: selection ? selection.end : Infinity,
     frame: 0
   });
 
