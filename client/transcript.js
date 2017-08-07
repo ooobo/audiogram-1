@@ -313,6 +313,10 @@ function generate(blob) {
     type: 'POST',
     success: function(data){
       poll(data.job);
+    },
+    error: function(jqXHR, textStatus, errorThrown){
+      jQuery("#transcript-pane .error span").text(errorThrown + " (" + jqXHR.status + "): " + jqXHR.responseText);
+      jQuery("#transcript").removeClass("loading").addClass("error");
     }
   });
 

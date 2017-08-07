@@ -123,12 +123,16 @@ select.transcript-speaker {
 }
 
 #transcript.loading transcript,
+#transcript.error transcript,
 #transcript.loading .transcript-export,
-#transcript:not(.loading) .loading{
+#transcript.error .transcript-export,
+#transcript:not(.loading) .loading,
+#transcript:not(.error) .error {
   display: none;
 }
 
 #transcript .loading,
+#transcript .error,
 #transcript .new  {
   text-align: center;
   color: #999;
