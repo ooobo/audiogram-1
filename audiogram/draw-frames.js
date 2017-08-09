@@ -18,8 +18,7 @@ function drawFrames(renderer, options, cb) {
     frameQueue.defer(subtitles.format, {transcript: options.transcript, theme: theme, trim: {start: options.start, end: options.end}});
   }
 
-
-  for (var i = options.frames.start; i < options.frames.end; i++) {
+  for (var i = +options.frames.start; i < +options.frames.end; i++) {
     frameQueue.defer(drawFrame, i);
   }
 
