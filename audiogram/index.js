@@ -13,7 +13,10 @@ var path = require("path"),
     subtitles = require("../renderer/subtitles.js"),
     combineFrames = require("./combine-frames.js"),
     backgroundVideo = require("./background-video.js"),
-    trimAudio = require("./trim.js");
+    trimAudio = require("./trim.js"),
+    spawn = require("child_process").spawn,
+    os = require('os'),
+    _ = require("underscore");
 
 function Audiogram(id) {
 
@@ -124,37 +127,58 @@ Audiogram.prototype.backgroundVideo = function(cb) {
 // Initialize the canvas and draw all the frames
 Audiogram.prototype.drawFrames = function(cb) {
 
-  var self = this;
+  this.status("frames");
 
-  this.status("renderer");
+  var self = this,
+      spawnQ = queue();
 
-  initializeCanvas(this.settings.theme, function(err, renderer){
+  var options = {
+        width: self.settings.theme.width,
+        height: self.settings.theme.height,
+        numFrames: self.numFrames,
+        frameDir: self.frameDir,
+        backgroundFrameDir: self.backgroundFrameDir,
+        caption: self.settings.caption,
+        transcript: JSON.parse(self.settings.transcript),
+        waveform: self.waveform,
+        fps: self.settings.theme.framesPerSecond,
+        start: self.settings.start,
+        end: self.settings.end,
+        backgroundInfo: self.settings.backgroundInfo
+      };
 
-    if (err) {
-      return cb(err);
-    }
+  // Store job info
+  transports.setField("jobInfo:" + this.id, "theme", JSON.stringify(this.settings.theme));
+  transports.setField("jobInfo:" + this.id, "options", JSON.stringify(options));
 
-    self.status("frames");
+  // Spawn multiple workers to multithread the frame rendering process
+  var cores = os.cpus().length,
+      framesPerCore = Math.ceil( (self.numFrames+1) / cores ),
+      framesPerWorker = Math.max( framesPerCore, 100 ),
+      start = -framesPerWorker,
+      end = 0;
+  while ( end < self.numFrames ) {
+    start += framesPerWorker;
+    end = Math.min(end + framesPerWorker, self.numFrames);
+    spawnQ.defer(spawnChild, {start: start, end: end});
+  }
 
-    drawFrames(renderer, {
-      width: self.settings.theme.width,
-      height: self.settings.theme.height,
-      numFrames: self.numFrames,
-      frameDir: self.frameDir,
-      backgroundFrameDir: self.backgroundFrameDir,
-      caption: self.settings.caption,
-      transcript: JSON.parse(self.settings.transcript),
-      waveform: self.waveform,
-      fps: self.settings.theme.framesPerSecond,
-      start: self.settings.start,
-      end: self.settings.end,
-      backgroundInfo: self.settings.backgroundInfo,
-      tick: function() {
-        transports.incrementField(self.id, "framesComplete");
-      }
-    }, cb);
-
+  // Once all workers have exited
+  spawnQ.await(function(err){
+    cb(err);
   });
+
+  function spawnChild(frames, spawnCb) {
+    var child = spawn("bin/frameWorker", [self.id, frames.start, frames.end], {
+                  stdio: "inherit",
+                  cwd: path.join(__dirname, ".."),
+                  env: _.extend({}, process.env, { SPAWNED: true })
+                });
+    child.on('exit', function (exitCode) {
+        var err = exitCode==-1 ? "frameWorker error" : null;
+        spawnCb(err);
+    });
+  }
 
 };
 

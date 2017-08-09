@@ -18,7 +18,8 @@ function drawFrames(renderer, options, cb) {
     frameQueue.defer(subtitles.format, {transcript: options.transcript, theme: theme, trim: {start: options.start, end: options.end}});
   }
 
-  for (var i = 0; i < options.numFrames-2; i++) {
+
+  for (var i = options.frames.start; i < options.frames.end; i++) {
     frameQueue.defer(drawFrame, i);
   }
 
@@ -43,7 +44,7 @@ function drawFrames(renderer, options, cb) {
           if (fs.existsSync(frameSrc)) {
             bg.src = frameSrc;
             return;
-          } else if (i<30) {
+          } else if (i<60) {
             setTimeout(addSrc,2000);
           } else {
             return imgCb("Background video frame not loaded in time (" + frameSrc + ")");

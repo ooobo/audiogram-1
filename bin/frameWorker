@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+
+require("../lib/settings/");
+var dotenv = require("dotenv").config({silent: true}),
+    Audiogram = require("../audiogram/"),
+    transports = require("../lib/transports/"),
+    initializeCanvas = require("../audiogram/initialize-canvas.js"),
+    drawFrames = require("../audiogram/draw-frames.js"),
+    jobId = process.argv[2],
+    hashId = "jobInfo:" + jobId,
+    frames = {start: process.argv[3], end: process.argv[4]};
+
+// exit on transports callback
+function cb(err) {
+  if (process.env.SPAWNED) {
+    transports.quit();
+    return process.exit(err ? -1 : 0);
+  }
+}
+
+// Get stored job info
+transports.getHash(hashId, function(err, hash){ 
+
+  if (err || !hash) {  
+
+    err = err || "no jobInfo found";
+    cb(err) 
+
+  } else if (hash) {
+
+    // Parse job info
+    var theme = JSON.parse(hash.theme),
+        options = JSON.parse(hash.options);
+
+    // Supplement options
+    options.frames = frames;
+    options.tick = function() {
+      transports.incrementField(jobId, "framesComplete");
+    }
+
+    // Initialise canvase with theme settings
+    initializeCanvas(theme, function(err, renderer){
+      if (err) return cb(err);
+      // Render frames
+      drawFrames(renderer, options, cb);
+    });
+
+  }
+
+});
+
+
