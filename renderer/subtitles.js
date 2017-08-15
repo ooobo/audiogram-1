@@ -97,12 +97,12 @@ function format(options, cb) {
           //    - we've moved to a new segment
           //    - we've reached maximum number of lines (and the last line is full)
           //    - there was a long gap between the last word and this one
-          if ( latestFrame && start - latestFrame.end < 1 ) {
+          if ( latestFrame && start - latestFrame.end < 2 ) {
             // If the start of the new frame is within 1s of the end of the last, split the difference
             var diff = start - latestFrame.end;
             start = start - diff/2;
             latestFrame.end += diff/2;
-          } else if (!latestFrame && start < 1) {
+          } else if (!latestFrame && start < 2) {
             // If the first frame is near the start, force it to zero
             start = 0;
           }
