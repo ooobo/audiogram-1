@@ -2,6 +2,7 @@
 var request = require('request'),
     queue = require("d3").queue,
     fs = require("fs"),
+    rimraf = require("rimraf"),
 	kaldiBaseURL = "http://zgbwcsttapi04.labs.jupiter.bbc.co.uk/api/v0.2/stt",
 	kaldiPoll;
 
@@ -62,7 +63,14 @@ function post(req, res) {
 		file: fs.createReadStream(req.files['audio'][0].path)
 	};
 	request.post({url: kaldiBaseURL, formData: formData}, function (error, response, body) {
-		var bodyJson = JSON.parse(body);
+		rimraf(req.files['audio'][0].destination, function(err){
+			console.log("Error deleting tmp dir: " + err);
+		})
+		try {
+			var bodyJson = JSON.parse(body);
+		} catch(e) {
+			return res.status(500).send("Error parsing Kaldi response.");
+		}
 		return res.json({job: bodyJson.jobid, error: error});
 	});
 }
