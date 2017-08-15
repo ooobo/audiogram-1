@@ -2,16 +2,20 @@ var serverSettings = require("../lib/settings/"),
     spawn = require("child_process").spawn,
     path = require("path"),
     _ = require("underscore"),
+    fs = require("fs"),
     logger = require("../lib/logger"),
-    transports = require("../lib/transports");
+    transports = require("../lib/transports"),
+    uuidv4 = require('uuid/v4');
 
 function validate(req, res, next) {
 
   console.log("RLW validating");
+  console.log(req.files);
 
   try {
 
     req.body.theme = JSON.parse(req.body.theme);
+    req.body.media = JSON.parse(req.body.media);
 
   } catch(e) {
 
@@ -19,9 +23,15 @@ function validate(req, res, next) {
 
   }
 
-  var audioFile = req.files['audio'][0]
-  if (!audioFile || !audioFile.filename) {
+  // var audioFile = req.files['audio'][0]
+  // if (!audioFile || !audioFile.filename) {
+  if (!req.body.media.audio || !req.body.media.audio.path) {
     return res.status(500).send("No valid audio received.");
+  }
+
+  var audioExists = fs.existsSync(req.body.media.audio.path);
+  if (!audioExists) {
+    return res.json({error: "reupload"});
   }
 
   // Start at the beginning, or specified time
@@ -33,40 +43,41 @@ function validate(req, res, next) {
     req.body.end = +req.body.end;
   }
 
-  return next();
+  next();
 
 }
 
 function route(req, res) {
 
   console.log("RLW routing");
+  var jobId = uuidv4();
 
-
-  if (req.files['background']) {
-    var backgroundFile = req.files['background'][0],
-        backgroundId = backgroundFile.destination.split(path.sep).pop(),
+  if (req.body.media.background) {
+    var backgroundSrc = req.body.media.background.path,
+        backgroundId = backgroundSrc.split(path.sep).reverse()[1],
         backgroundImagePath = "background/" + backgroundId;
-    transports.uploadBackground(path.join(backgroundFile.destination, "background"), backgroundImagePath, function(err) {
+    transports.uploadBackground(backgroundSrc, backgroundImagePath, function(err) {
       if (err) {
         throw err;
       }
     });
   }
 
-  if (req.files['foreground']) {
-    var foregroundFile = req.files['foreground'][0],
-        foregroundId = foregroundFile.destination.split(path.sep).pop(),
+  if (req.body.media.foreground) {
+    var foregroundSrc = req.body.media.foreground.path,
+        foregroundId = foregroundSrc.split(path.sep).reverse()[1],
         foregroundImagePath = "foreground/" + foregroundId;
-    transports.uploadForeground(path.join(foregroundFile.destination, "foreground"), foregroundImagePath, function(err) {
+    transports.uploadBackground(foregroundSrc, foregroundImagePath, function(err) {
       if (err) {
         throw err;
       }
     });
   }
 
-  var audioFile = req.files['audio'][0],
-      audioId = audioFile.destination.split(path.sep).pop();
-  transports.uploadAudio(path.join(audioFile.destination, "audio"), "audio/" + audioId, function(err) {
+  var audioSrc = req.body.media.audio.path,
+      audioId = audioSrc.split(path.sep).reverse()[1],
+      audioPath = "audio/" + jobId;
+  transports.uploadAudio(audioSrc, audioPath, function(err) {
 
     if (err) {
       console.log("RLW routing err");
@@ -74,10 +85,10 @@ function route(req, res) {
     }
 
     // Queue up the job with a timestamp
-    var themeWithBackgroundImage =  _.extend(req.body.theme, { customBackgroundPath: backgroundImagePath, customForegroundPath: foregroundImagePath });
-    transports.addJob(_.extend({ id: audioId, created: (new Date()).getTime(), theme: themeWithBackgroundImage }, req.body));
+    var themeWithBackgroundImage =  _.extend(req.body.theme, { audioPath: audioPath, customBackgroundPath: backgroundImagePath, customForegroundPath: foregroundImagePath });
+    transports.addJob(_.extend({ id: jobId, created: (new Date()).getTime(), media: req.body.media, theme: themeWithBackgroundImage }, req.body));
 
-    res.json({ id: audioId });
+    res.json({ id: jobId });
 
     // If there's no separate worker, spawn one right away
     if (!serverSettings.worker) {

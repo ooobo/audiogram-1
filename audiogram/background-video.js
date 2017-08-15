@@ -32,17 +32,20 @@ function backgroundVideo(options, cb) {
     var arguments = [
       '-loglevel', 'fatal',
       '-i', options.origin,
-      '-r', 25,
-      '-vf', "select='gt(t,0)*lt(t," + options.duration + ")'",
-      options.destination + '/%06d.png'
+      '-r', 25
     ];
+    if (options.duration) {
+      arguments.push('-vf', "select='gt(t,0)*lt(t," + options.duration + ")'");
+    }
+    arguments.push(options.destination + '/%06d.png');
+    console.log(arguments);
     run(arguments, callback(null));
   }
 
   q.defer(getFps)
    .defer(makeFrames)
    .await(function(err,fps){
-      cb(err,fps);
+      if (cb) return cb(err,fps);
     });
 
 }

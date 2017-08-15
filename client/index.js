@@ -10,6 +10,8 @@ global.jQuery = $;
 
 var themesRaw,
     imgFile={},
+    media={},
+    blobs={},
     vcsTranscriptTimeout,
     audioSource = "vcs";
 
@@ -73,9 +75,25 @@ function getURLParams(qs) {
 }
 var params = getURLParams(document.location.search);
 
-function submitted() {
 
-  d3.event.preventDefault();
+function validate() {
+  console.log("validate");
+  d3.select("#loading-message").text("Uploading files...");
+  setClass("loading");
+  for (var type in media) {
+    if (!media[type].path) {
+      console.log("validate timeout");
+      setTimeout(validate, 2000);
+      return false;
+    }
+  }
+  submitted();
+}
+
+function submitted() {
+  console.log("submitted");
+
+  if (d3.event) d3.event.preventDefault();
 
   var theme = preview.theme(),
       caption = preview.caption(),
@@ -106,9 +124,13 @@ function submitted() {
   var formData = new FormData();
 
   formData.append("user", USER.email);
-  formData.append("audio", audioFile);
-  formData.append("background", imgFile.background);
-  formData.append("foreground", imgFile.foreground);
+
+  // formData.append("audio", audioFile);
+  // formData.append("background", imgFile.background);
+  // formData.append("foreground", imgFile.foreground);
+
+  formData.append("media", JSON.stringify(media));
+
   formData.append("backgroundInfo", JSON.stringify(backgroundInfo || theme.backgroundImageInfo[theme.orientation]));
   if (selection.start || selection.end) {
     formData.append("start", selection.start);
@@ -140,6 +162,11 @@ function submitted() {
 		cache: false,
 		processData: false,
 		success: function(data){
+      if (data.error=="reupload") {
+        // Temporary media files have been lost. Reupload them and try again.
+        console.log("Reuploading media");
+        return reUploadMedia();
+      }
       poll(data.id, 0);
       // Logging
       var fields = [];
@@ -153,6 +180,48 @@ function submitted() {
 
   });
 
+}
+
+function reUploadMedia() {
+  for (var type in blobs) {
+    uploadMedia(type, blobs[type]);
+  }
+  validate();
+}
+
+function uploadMedia(type, blob) {
+  // Reset
+    delete(media[type]);
+    delete(blobs[type]);
+    if (!blob) {
+      return false;
+    }
+    media[type] = {name: blob.name || "blob", size: blob.size};
+    blobs[type] = blob;
+  // Prepare payload
+    var formData = new FormData();
+    formData.append("type", type);
+    formData.append("file", blob);
+  // AJAX submit
+    $.ajax({
+      url: "/upload/",
+      type: "POST",
+      data: formData,
+      contentType: false,
+      dataType: "json",
+      cache: false,
+      processData: false,
+      success: function(data){
+        console.log(data);
+        if (media[data.type] && data.name == media[data.type].name && data.size == media[data.type].size) {
+          // Only use response if the source name hasn't changed
+          // (if it has, prob because another call was made before this one returned a response)
+          media[data.type].path = data.path;
+          if (data.framesDir) media[data.type].framesDir = data.framesDir;
+        }
+      },
+      error: error
+    });
 }
 
 function poll(id) {
@@ -420,7 +489,7 @@ function initialize(err, themesWithImages) {
     setClass(null);
   });
 
-  d3.select("#submit").on("click", submitted);
+  d3.select("#submit").on("click", validate);
 
   d3.select(window).on("resize", windowResize).each(windowResize);
 
@@ -764,6 +833,8 @@ function exportTranscript() {
     document.getElementById("trasncript-export-dummy").click();
   }
 
+  logger.info(USER.name + " exported the transcript (format: " + filename + ")");
+
 
 }
 
@@ -830,6 +901,7 @@ function updateAudioFile(blob) {
       setClass("error", "Error decoding audio file (" + filename + ")");
     } else {
       setClass(null);
+      uploadMedia("audio", audioFile);
       if (!blob) logger.info(USER.name + " uploaded a local audio file: " + filename);
     }
 
@@ -1060,12 +1132,14 @@ function updateImage(event, type, blob) {
         preview.img(type,null);
         var input = jQuery("#input-" + type);
         input.replaceWith(input.val('').clone(true));
+        uploadMedia(type, null);
       });
       setClass(null);
       return true;
     }
 
     imgFile[type] = blob || this.files[0];
+    uploadMedia(type, imgFile[type]);
     var filename = blob ? "blob" : jQuery("#input-" + type).val().split("\\").pop();
 
     var size = imgFile[type].size/1000000;
@@ -1339,6 +1413,9 @@ function statusMessage(result) {
     case "renderer":
       return "Initializing renderer";
     case "frames":
+      if (!result.framesComplete && blobs.background && blobs.background.type.startsWith("video")) {
+        return "Processing background video";
+      }
       var msg = "Generating frames";
       if (result.numFrames) {
         msg += ", " + Math.round(100 * (result.framesComplete || 0) / result.numFrames) + "% complete";

@@ -247,8 +247,17 @@ Audiogram.prototype.render = function(cb) {
   // Process background video
   this.settings.backgroundInfo = JSON.parse(this.settings.backgroundInfo);
   if (this.settings.backgroundInfo.type.startsWith("video")) {
-    q.defer(mkdirp, this.backgroundFrameDir);
-    q.defer(this.backgroundVideo.bind(this));
+    if (this.settings.media.background.framesDir) {
+      // video already processed
+      this.backgroundFrameDir = this.settings.media.background.framesDir;
+      var fps = 25;
+      this.settings.backgroundInfo.frames = Math.ceil(fps * this.settings.backgroundInfo.duration);
+      this.settings.theme.framesPerSecond = fps;
+    } else {
+      // re-process
+      q.defer(mkdirp, this.backgroundFrameDir);
+      q.defer(this.backgroundVideo.bind(this));
+    }
   }
 
   // Get the audio waveform data
@@ -271,7 +280,7 @@ Audiogram.prototype.render = function(cb) {
   q.defer(transports.uploadVideo, this.videoPath, "video/" + this.id + ".mp4");
 
   // Delete working directory
-  // q.defer(rimraf, this.dir);
+  q.defer(rimraf, this.dir);
   // TO DO: also need to remove bg directory
 
   // Final callback, results in a URL where the finished video is accessible

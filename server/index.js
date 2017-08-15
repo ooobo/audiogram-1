@@ -16,6 +16,7 @@ var whitelist = require("./whitelist.js"),
     status = require("./status.js"),
     fonts = require("./fonts.js"),
     whoami = require("./whoami.js"),
+    upload = require("./upload.js"),
     kaldi = require("./kaldi.js"),
     vcs = require("./vcs.js"),
     ichef = require("./ichef.js"),
@@ -75,7 +76,11 @@ if (serverSettings.maxUploadSize) {
   };
 }
 
+// Upload media
+app.post("/upload/", [multer(fileOptions).fields([{ name: 'file', maxCount: 1 }]), upload]);
+
 // On submission, check upload, validate input, and start generating a video
+// app.post("/submit/", render.validate);
 var filesToUpload = [{ name: 'audio', maxCount: 1 }, { name: 'background', maxCount: 1 }, { name: 'foreground', maxCount: 1 }];
 app.post("/submit/", [multer(fileOptions).fields(filesToUpload), render.validate, render.route]);
 
