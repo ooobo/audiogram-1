@@ -1,9 +1,8 @@
 FROM ubuntu:16.10
 
 # Install server dependencies
-RUN apt-get install --fix-missing \
-&& apt-get update --yes && apt-get upgrade --yes \
-&& apt-get install git nodejs npm vim \
+RUN apt-get update --yes && apt-get upgrade --yes \
+&& apt-get install --fix-missing git nodejs npm vim \
 libcairo2-dev libjpeg8-dev libpango1.0-dev libgif-dev libpng-dev build-essential g++ \
 ffmpeg \
 redis-server --yes
