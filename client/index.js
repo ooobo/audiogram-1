@@ -25,7 +25,7 @@ jQuery.getJSON( "/whoami", function( data ) {
   logger.info(USER.name + " logged in.\n`" + navigator.userAgent + "`");
 
   // Piwik Code - for now, replaces Google Analytics
-  global._paq = _paq || [];
+  global._paq = global._paq || [];
   /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
   global._paq.push(['setUserId', USER.email);
   global._paq.push(['trackPageView']);
