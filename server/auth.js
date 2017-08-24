@@ -1,7 +1,7 @@
 module.exports = (WHITELIST) => {
 
   function isAdmin (emailAddress) {
-    var ADMINS = ["jonty.usborne@bbc.co.uk", "robert.mckenzie@bbc.co.uk", "miles.bernie@bbc.co.uk", "allison.shultes@bbc.co.uk", "dave.bevan@bbc.co.uk", "nick.clark@bbc.co.uk"];
+    var ADMINS = ["jonty.usborne@bbc.co.uk", "robert.mckenzie@bbc.co.uk", "miles.bernie@bbc.co.uk", "allison.shultes@bbc.co.uk", "dave.bevan@bbc.co.uk", "nick.clark@bbc.co.uk", "tamsin.green@bbc.co.uk"];
     return ADMINS.some(function(e) {
       var re = new RegExp(e,"i");
       return emailAddress.match(re)}
