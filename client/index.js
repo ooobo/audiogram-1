@@ -27,7 +27,7 @@ jQuery.getJSON( "/whoami", function( data ) {
   // Piwik Code - for now, replaces Google Analytics
   global._paq = global._paq || [];
   /* tracker methods like "setCustomDimension" should be called before "trackPageView" */
-  global._paq.push(['setUserId', USER.email);
+  global._paq.push(['setUserId', USER.email]);
   global._paq.push(['trackPageView']);
   global._paq.push(['enableLinkTracking']);
   (function() {
