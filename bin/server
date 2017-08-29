@@ -7,7 +7,7 @@ var dotenv = require("dotenv").config({silent: true}),
     logger = require("../lib/logger/"),
     server = require("../server/");
 
-var port = +process.env.PORT || 8081;
+var port = +process.env.PORT || 8080;
 
 server.listen(port);
 

@@ -4,7 +4,7 @@ var d3 = require("d3"),
     logger = require("./slack.js"),
     preview = require("./preview.js"),
     minimap = require("./minimap.js"),
-    video = require("./video.js"),
+    video = require("./video_html5.js"),
     audio = require("./audio.js");
 global.jQuery = $;
 
